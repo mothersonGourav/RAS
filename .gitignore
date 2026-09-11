@@ -1,0 +1,43 @@
+# Environment variables
+.env
+.env.*
+
+# Virtual environments
+.venv/
+venv/
+env/
+smr_ras_env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Vector database
+app/chroma_db/
+chroma_db/
+# Metadata
+app/metadata/
+
+# utils
+app/test.py
+app/embedding/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Test/cache files
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+app.zip
