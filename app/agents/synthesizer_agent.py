@@ -81,6 +81,7 @@ class SynthesizerAgent:
         query_result   = state.get("query_result")
         raw_results    = state.get("raw_db_results", [])
         filters_used   = state.get("validated_schema", state.get("raw_filters", {}))
+        # filters_used = state.get("raw_filters",{})
 
         if isinstance(query_result, list):
             df = pd.DataFrame(query_result)

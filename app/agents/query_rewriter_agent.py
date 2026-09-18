@@ -15,7 +15,7 @@ class QueryRewriterAgent:
         current_query = state.get("current_query", "")
         semantic_state = state.get("semantic_state") or {}
         messages = state.get("messages", [])
-        user_id = state.get("user_id", "Unknown")
+        # user_id = state.get("user_id", "Unknown")
         
         # Build the full formatted history
         history_text = "\n".join([
@@ -28,7 +28,7 @@ class QueryRewriterAgent:
         # Ground the prompt with Time and User Identity
         system_prompt_grounded = (QUERY_REWRITER_PROMPT
             .replace("{current_time}", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            .replace("{user_id}", user_id)
+            # .replace("{user_id}", user_id)
         )
 
         user_prompt = (

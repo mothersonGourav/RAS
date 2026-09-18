@@ -100,6 +100,7 @@ class VectorSearchTool:
             }
             logger.info(f"[VectorSearch] Attempting Pure Value Search for: {raw_value_str!r}")
             results = await self.vector_client.search(**search_kwargs)
+            # print("RESULTS FROM AZURE SEARCH :",results)
             
             if results:
                 print(f"Top Score: {results[0].get('score', 0.0)}")

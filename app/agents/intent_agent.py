@@ -44,25 +44,36 @@ class IntentAgent:
             # If user made an ambiguity choice, override/replace filters purely in Python
             if user_selected:
                 logger.info(f"Intent Agent: Applying deterministic override with user selections: {list(user_selected.keys())}")
-                
-                # Remove ambiguous/redundant filters matching user selections
                 keys_to_remove = set()
                 for sel_k, sel_v in user_selected.items():
-                    for k, v in filters_dict.items():
-                        # If the LLM guessed a conflicting column or a substring of the selected value, remove it
-                        if str(v).lower() in str(sel_v).lower() or sel_k.lower() == k.lower():
-                            keys_to_remove.add(k)
+                    for k, v in list(filters_dict.items()):
+                        if isinstance(v, list):
+                            new_list = [item for item in v if str(item).lower() not in str(sel_v).lower()]
+                            
+                            if sel_k.lower() == k.lower():
+                                new_list.append(sel_v)
+                                filters_dict[k] = new_list
+                            else:
+                                filters_dict[k] = new_list
+                                if not new_list:
+                                    keys_to_remove.add(k)
+                                    
+                        # Scalar Handling (Strings/Numbers)
+                        else:
+                            if sel_k.lower() == k.lower() or (isinstance(v, str) and str(v).lower() in str(sel_v).lower()):
+                                keys_to_remove.add(k)
 
                 for k in keys_to_remove:
-                    logger.info(f"Intent Agent: Dropping ambiguous LLM filter '{k}': '{filters_dict[k]}'")
-                    del filters_dict[k]
+                    if k in filters_dict:
+                        logger.info(f"Intent Agent: Dropping ambiguous LLM filter '{k}'")
+                        del filters_dict[k]
                 
                 # Inject exact user-selected values without any LLM alteration
                 for k, v in user_selected.items():
-                    filters_dict[k] = v
+                    if k not in filters_dict or not isinstance(filters_dict[k], list):
+                        filters_dict[k] = v
 
                 response.filters = filters_dict
-                # Ensure the route is set to SQL if a concrete entity was selected
                 if response.route == "vague":
                     response.route = "sql"
                 

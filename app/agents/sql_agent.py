@@ -242,7 +242,7 @@ class SQLAgent:
             f"{comparison_instruction}\n\n"
             f"METRIC:\n{state.get('metric')}\n\n"
             f"TOP N:\n{state.get('top_n')}"
-            # f"{few_shot_enforcement}"
+            f"{few_shot_enforcement}"
         )
 
         system_tokens = self.count_tokens(system_prompt)
