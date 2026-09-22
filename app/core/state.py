@@ -1,0 +1,36 @@
+from typing import TypedDict, Optional, List, Dict, Any
+
+class AgentState(TypedDict, total=False):
+    current_query: str
+    messages: List[Dict[str, str]]
+    route: Optional[str]
+    metric: Optional[str]
+    group_by: Optional[str]
+    raw_filters: Dict[str, Any]
+    filters_used:Optional[Dict[str, Any]]
+    requires_pandas: bool
+    top_n: Optional[int]
+    data:  Optional[List[Any]]
+    session_id: Optional[str]
+    validated_schema: Dict[str, str]
+    sql_queries: List[Dict[str, str]]
+    raw_db_results: List[Any]
+    pandas_results: List[Any]
+    final_response: Optional[str]
+    direct_response: Optional[str]
+    category: Optional[str]   
+    intents: List[Dict[str, Any]]
+    insights: Optional[List[str]]
+    response_type: Optional[str]
+    clarification_options: Optional[List[str]]
+    graph_payload: Optional[Dict[str, Any]]
+    user_id: Optional[str]
+    scope: Optional[str]
+    language: Optional[str]
+    is_ambiguous:          bool
+    user_selected_value:   Optional[Dict[str, Any]]
+    rewritten_query:       Optional[str]
+    user_role: Optional[str]  
+    query_type: Optional[str]
+    record_count:          Optional[int]
+    response_html:         Optional[str]
