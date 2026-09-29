@@ -3,7 +3,6 @@ from app.utils.logger import logger
 from sqlglot import parse_one, exp
 from collections import defaultdict
 from typing import Any
-import logging
 import re
 import json
 
@@ -15,7 +14,6 @@ EXACT_MATCH_COLUMNS = {
     "is_event_id_created_in_ariba", "supplier_group", "fy",
 }
 
-# Columns where LOWER() + LIKE is correct
 LIKE_MATCH_COLUMNS = {
     "site", "supplier", "region", "l1_category", "l2_category",
     "l3_category", "l4_category", "supplier_country", "site_country",

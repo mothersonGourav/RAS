@@ -71,9 +71,9 @@ class AzureSearchClient(BaseVectorDB):
                 search_text=query_text,
                 vector_queries=[vector_query],
                 filter=odata_filter,
-                query_type="semantic",
+                # query_type="semantic",
                 top=top_k,
-                semantic_configuration_name=Config.AZURE_SEMANTIC_CONFIGURATION
+                # semantic_configuration_name=Config.AZURE_SEMANTIC_CONFIGURATION
             )
             raw_results = [doc async for doc in raw_results_async]
 

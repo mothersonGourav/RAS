@@ -6,7 +6,7 @@ from app.base.base_rdbms import BaseRDBMS
 from app.utils.config import Config
 from app.utils.logger import logger
 from app.utils.schema_loader import SchemaManager
-from app.core.exceptions import EntityAmbiguousError
+from app.core.exceptions import EntityAmbiguousError,MultiEntityAmbiguousError
 from app.utils.helper_methods import (
     build_sql_fragment, is_date_bypass,is_partial_match)
 
@@ -54,19 +54,50 @@ class VectorSearchTool:
                     matches.append({"col": k, "val": v_str})
                     
         return matches
+
+    def normalize_textual_math(self, val_str: str) -> str:
+        """Converts LLM textual math hallucinations into strict operators."""
+        val_lower = val_str.lower().strip()
+        replacements = [
+            (r"^(?:is\s+)?greater than or equal to\s*([\d.]+)", r">= \1"),
+            (r"^(?:is\s+)?less than or equal to\s*([\d.]+)", r"<= \1"),
+            (r"^(?:is\s+)?at least\s*([\d.]+)", r">= \1"),
+            (r"^(?:is\s+)?more than\s*([\d.]+)", r"> \1"),
+            (r"^(?:is\s+)?greater than\s*([\d.]+)", r"> \1"),
+            (r"^(?:is\s+)?less than\s*([\d.]+)", r"< \1"),
+            (r"^(?:is\s+)?under\s*([\d.]+)", r"< \1"),
+            (r"^(?:is\s+)?over\s*([\d.]+)", r"> \1"),
+            (r"^(?:is\s+)?equal to\s*([\d.]+)", r"= \1")
+        ]
+        for pattern, replacement in replacements:
+            import re
+            if re.match(pattern, val_lower):
+                return re.sub(pattern, replacement, val_lower)
+        return val_str
     
     # Process Single Filter values 
     async def process_single_filter(
         self, entity_label: str, raw_value: Any, route: str = None, user_query: str = ""
     ) -> Tuple[str, str]:
         
+        if isinstance(raw_value, str) and raw_value.startswith("__EXPLICIT__"):
+            parts = raw_value.split("__VAL__")
+            explicit_col = parts[0].replace("__EXPLICIT__", "")
+            actual_val = parts[1]
+            logger.info(f"[VectorSearch] Intercepted explicit bypass: Col={explicit_col}, Val={actual_val}")
+            sql_fragment = build_sql_fragment(explicit_col, explicit_col, actual_val, route)
+            return entity_label, sql_fragment
+
         if isinstance(raw_value, dict):
             logger.info(f"[VectorSearch] Dictionary bounds detected for '{entity_label}', bypassing search.")
             dt_table, dt_col, _ = self.schema_manager.find_column_by_alias(entity_label)
             col_ref = dt_col or entity_label
             return entity_label, build_sql_fragment(col_ref, col_ref, raw_value, route)
         
+        # 1. MATH NORMALIZATION FIX
         raw_value_str = str(raw_value).strip()
+        raw_value_str = self.normalize_textual_math(raw_value_str) 
+
         dt_table, dt_col, _ = self.schema_manager.find_column_by_alias(entity_label)
         col_ref  = dt_col or entity_label 
         col_name = dt_col or entity_label
@@ -100,7 +131,6 @@ class VectorSearchTool:
             }
             logger.info(f"[VectorSearch] Attempting Pure Value Search for: {raw_value_str!r}")
             results = await self.vector_client.search(**search_kwargs)
-            # print("RESULTS FROM AZURE SEARCH :",results)
             
             if results:
                 print(f"Top Score: {results[0].get('score', 0.0)}")
@@ -145,11 +175,9 @@ class VectorSearchTool:
             for idx, m in enumerate(margin_matches, 1):
                 print(f"[{idx}] Column: '{m['col']}' | Value: '{m['val']}'")
 
-            # Resolve expected column
             _, expected_col, _ = self.schema_manager.find_column_by_alias(entity_label)
             expected_col = (expected_col or entity_label).lower()
 
-            # Ambiguity Multiple valid distinct strings found
             if len(margin_matches) > 1:
                 
                 intent_matches = [
@@ -178,12 +206,13 @@ class VectorSearchTool:
                     sql_fragment = f"({' OR '.join(or_conditions)})"
                     return entity_label, sql_fragment
                 else:
+                    # 2. COMPOSITE KEY FIX (Single Case)
+                    comp_key = f"{entity_label}::{raw_value_str}"
                     raise EntityAmbiguousError(
-                        f"{raw_value_str}",
+                        f"{comp_key}",
                         options=distinct_options,
                     )
 
-            # Single Match
             elif len(margin_matches) == 1:
                 match = margin_matches[0]
                 best_field = match["col"]
@@ -197,29 +226,67 @@ class VectorSearchTool:
         except Exception as e:
             logger.error(f"[VectorSearch] Unexpected error: {e}", exc_info=True)
             return entity_label, fallback()
-
+        
     async def validate_filters(self, raw_filters: dict, route: str = None, user_query: str = "") -> dict:
         if not raw_filters:
             return {}
 
         logger.info(f"[VectorSearch] Validating {len(raw_filters)} filter(s), route={route!r}")
-
-        async def process_key(label: str, value: Any):
-            if isinstance(value, list):
-                tasks     = [self.process_single_filter(label, item, route, user_query) for item in value]
-                results   = await asyncio.gather(*tasks)
-                fragments = [r[1] for r in results]
-                return label, f"({' OR '.join(fragments)})"
-            return await self.process_single_filter(label, value, route, user_query)
-
-        tasks   = [process_key(label, value) for label, value in raw_filters.items()]
-        results = await asyncio.gather(*tasks)
-
         validated = {}
-        for new_label, sql_fragment in results:
-            validated[new_label] = sql_fragment
+        batch_ambiguities = {}
+
+        for label, value in raw_filters.items():
+            if isinstance(value, list):
+                tasks = [self.process_single_filter(label, item, route, user_query) for item in value]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                
+                fragments = []
+                resolved_label = label 
+                
+                for idx, r in enumerate(results):
+                    if isinstance(r, EntityAmbiguousError):
+                        # 3. COMPOSITE KEY FIX (List Case)
+                        comp_key = f"{label}::{value[idx]}"
+                        batch_ambiguities[comp_key] = r.options
+                    elif isinstance(r, Exception):
+                        logger.error(f"[VectorSearch] Error processing '{value[idx]}': {r}")
+                        raise r
+                    else:
+                        new_label, sql_fragment = r
+                        resolved_label = new_label
+                        fragments.append(sql_fragment)
+                
+                if fragments:
+                    combined_fragment = f"({' OR '.join(fragments)})"
+                    if resolved_label in validated:
+                        clean_existing = validated[resolved_label].strip("()")
+                        clean_new = combined_fragment.strip("()")
+                        validated[resolved_label] = f"({clean_existing} OR {clean_new})"
+                    else:
+                        validated[resolved_label] = combined_fragment
+                        
+            else:
+                try:
+                    new_label, sql_fragment = await self.process_single_filter(label, value, route, user_query)
+                    if new_label in validated:
+                        clean_existing = validated[new_label].strip("()")
+                        clean_new = sql_fragment.strip("()")
+                        validated[new_label] = f"({clean_existing} OR {clean_new})"
+                    else:
+                        validated[new_label] = sql_fragment
+                        
+                except EntityAmbiguousError as e:
+                    # 4. COMPOSITE KEY FIX (Scalar Case)
+                    comp_key = f"{label}::{value}"
+                    batch_ambiguities[comp_key] = e.options
+                except Exception as e:
+                    logger.error(f"[VectorSearch] Error processing '{value}': {e}")
+                    raise e
+
+        if batch_ambiguities:
+            raise MultiEntityAmbiguousError(
+                "Multiple entities require clarification.", 
+                ambiguities=batch_ambiguities
+            )
 
         return validated
-
-
-

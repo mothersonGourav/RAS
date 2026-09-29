@@ -153,6 +153,14 @@ class SQLAgent:
                 "DO NOT re-derive or guess filter values from the query text.\n"
                 "The values below are already resolved and must be copied exactly as-is:"
             )
+            if state.get("turn_classification") == "AMBIGUITY_CHOICE":
+                logger.info("[SQLAgent] Injecting strict override directive for Ambiguity Resolution.")
+                prompt_instruction += (
+                    "\n\nSTRICT OVERRIDE DIRECTIVE:\n"
+                    "These resolved filters completely REPLACE the vague search terms in the original prompt. "
+                    "DO NOT add any manual text filters, global 'OR' searches, or ILIKE conditions for the original vague words. "
+                    "You MUST strictly use ONLY the exact SQL fragments provided below for filtering."
+                )
 
         elif raw_filters:
             filter_parts = []
