@@ -39,36 +39,87 @@ def clean_filters_for_display(filters_used: dict) -> dict:
         cleaned[clean_key] = display_value
     return cleaned
 
-async def generate_summary(llm, user_query: str, record_count: int, data: list = None) -> str:
+async def generate_summary(llm, user_query: str, record_count: int, data: list = None) -> dict:
     if not data or record_count == 0:
-        return "No matching records found."
+        return {"final_response": "No matching records found.", "follow_up_questions": []}
+    
     try:
         data_sample = data[:5] 
         system_prompt = (
             "You are a strict, factual data analyst translating raw database results into business insights. "
             "Your ONLY job is to answer the user's query using the provided Data Snippet. "
             "RULES:\n"
-            "1. Return ONLY a single sentence (maximum 50 words).\n"
-            "2. Be direct and factual. Extract the specific numbers, names, or metrics from the data.\n"
-            "3. Do not hallucinate. If the answer isn't in the data, state what the data shows.\n"
-            "4. Never mention 'SQL', 'database', 'JSON', or 'snippet'."
-            "5. Do not overwrite the Data Snippet provided use the complete Data Snippet to generate the response."
-
+            "1. Return ONLY a JSON object with two keys: 'response' and 'follow_up_questions'. No markdown or code fences.\n"
+            "2. 'response': A single sentence (maximum 50 words). Be direct and factual. Extract specific numbers or metrics from the data.\n"
+            "3. 'follow_up_questions': An array of 2 to 3 natural language questions the user could ask next to dive deeper into this data.\n"
+            "4. Do not hallucinate. If the answer isn't in the data, state what the data shows.\n"
+            "5. Never mention 'SQL', 'database', 'JSON', or 'snippet'."
         )
         user_prompt = (
             f"User Query: {user_query}\n"
             f"Total Records: {record_count}\n"
             f"Data Snippet: {json.dumps(data_sample, default=str)}\n\n"
-            "Provide the single-sentence summary."
+            "Provide the JSON output."
         )
         response = await llm.generate_text(
             system_prompt=system_prompt,
             user_prompt=user_prompt
         )
-        return response.strip()
+        
+        # Parse the JSON response
+        raw = response.strip() if isinstance(response, str) else ""
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1]
+        if raw.endswith("```"):
+            raw = raw.rsplit("```", 1)[0]
+        raw = raw.strip()
+
+        parsed = json.loads(raw)
+        summary = parsed.get("response", "").strip()
+        follow_ups = parsed.get("follow_up_questions", [])
+
+        if not isinstance(follow_ups, list):
+            follow_ups = []
+
+        return {"final_response": summary, "follow_up_questions": follow_ups}
+
     except Exception as e:  
         logger.error(f"Summary LLM error: {e}", exc_info=True)
-        return f"Found {record_count} records matching your criteria."
+        return {
+            "final_response": f"Found {record_count} records matching your criteria.",
+            "follow_up_questions": []
+        }
+    
+# async def generate_summary(llm, user_query: str, record_count: int, data: list = None) -> str:
+#     if not data or record_count == 0:
+#         return "No matching records found."
+#     try:
+#         data_sample = data[:5] 
+#         system_prompt = (
+#             "You are a strict, factual data analyst translating raw database results into business insights. "
+#             "Your ONLY job is to answer the user's query using the provided Data Snippet. "
+#             "RULES:\n"
+#             "1. Return ONLY a single sentence (maximum 50 words).\n"
+#             "2. Be direct and factual. Extract the specific numbers, names, or metrics from the data.\n"
+#             "3. Do not hallucinate. If the answer isn't in the data, state what the data shows.\n"
+#             "4. Never mention 'SQL', 'database', 'JSON', or 'snippet'."
+#             "5. Do not overwrite the Data Snippet provided use the complete Data Snippet to generate the response."
+
+#         )
+#         user_prompt = (
+#             f"User Query: {user_query}\n"
+#             f"Total Records: {record_count}\n"
+#             f"Data Snippet: {json.dumps(data_sample, default=str)}\n\n"
+#             "Provide the single-sentence summary."
+#         )
+#         response = await llm.generate_text(
+#             system_prompt=system_prompt,
+#             user_prompt=user_prompt
+#         )
+#         return response.strip()
+#     except Exception as e:  
+#         logger.error(f"Summary LLM error: {e}", exc_info=True)
+#         return f"Found {record_count} records matching your criteria."
 
 def build_sql_fragment(col_ref: str, col_name: str, value: Any, route: str = None) -> str:
     if isinstance(value, dict):

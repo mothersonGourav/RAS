@@ -102,7 +102,9 @@ async def chat(request: Request, payload: ChatRequest):
             data=data,
             insights=result.get("insights", []),
             filters_used=final_display_filters,
-            sql_queries=[{"name": q.get("name", ""), "sql": q.get("sql", "")} for q in sql_queries]
+            sql_queries=[{"name": q.get("name", ""), "sql": q.get("sql", "")} for q in sql_queries],
+            interpreted_query=result.get("intent", {}).get("interpreted_query", ""),
+            follow_up_questions=result.get("follow_up_questions", [])
         )
         
         if hasattr(redis_client, 'append_ui_history'):

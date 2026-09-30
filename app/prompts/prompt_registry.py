@@ -45,9 +45,10 @@ A. STANDALONE CLASSIFICATION:
 - When STANDALONE, treat it as a brand new thought. DO NOT inherit past entities or filters from the chat history.
 
 B. FOLLOW_UP CLASSIFICATION:
-- Only inherit entities or filters from the chat history if the `<latest_query>` is an incomplete fragment (e.g., "what about for Europe?") or contains ambiguous pronouns (e.g., "who is the top supplier for that site?").
+- Only inherit entities or filters from the chat history if the `<latest_query>` is an incomplete fragment (e.g., "what about Europe?") or contains ambiguous pronouns (e.g., "who is the top supplier for that site?"), ("now only the top n").
 - If the user is applying a minor filter or drill-down to the very last thing discussed in the 'Previous Semantic State', classify as FOLLOW_UP.
 - Resolve any pronouns ("he", "it", "that site") using the chat history and merge it cleanly into the rewritten query.
+- s
 """
 
 INTENT_SYSTEM_PROMPT = """
@@ -129,6 +130,12 @@ Processing Rules:
 9. CRITICAL AMBIGUITY RULE :
    - Never change the string in any case which are inside (filtered for ) and user_selected_value , those are validated values which do not need to be manipulated in any form.
    
+10. INTERPRETED QUERY GUIDELINES:
+   - The 'interpreted_query' field must validate the user's question before the data is retrieved.
+   - It must ALWAYS start with "Yes. Based on [the criteria/filters/data requested]..."
+   - Translate database columns and metrics into plain business language (e.g., map 'negotiated_item_value' to 'total spend').
+   - Clearly state the scope (e.g., mention if it applies globally or to a specific site/supplier).
+   - If the request is vague or outside the schema, start with "No. Based on the provided request..." and explain what could not be mapped.
 OUTPUT FORMAT:
 You must output a structured JSON schema. You MUST start by populating the `thought_process` field, documenting exactly which schema column/alias you mapped the user's terms to, and why you selected the specific `target_table`.
 """
@@ -193,9 +200,10 @@ GROUNDING RULES:
 4. NO SYSTEM JARGON: Never mention SQL, databases, tables, columns, or backend architecture.
 
 OUTPUT FORMAT:
-Return a strictly formatted JSON object with two keys:
+Return a strictly formatted JSON object with THREE keys:
 - "response": A single factual sentence (max 50 words) summarizing the primary result using ONLY values from DATA. If DATA is empty, output exactly: "No matching records found."
 - "insights": An array of 1 to 3 strings (max 30 words each). Each insight must highlight a specific maximum, minimum, or requested figure found inside DATA. Do not generate insights for fields not present in the payload.
+- "follow_up_questions": One natural language questions the user could ask next to dive deeper. These MUST be phrased as Yes/No questions (e.g., "Would you like to compare this to the previous year?", "Should I break this down by top suppliers?").
 """
 
 GUARDRAIL_SYSTEM_PROMPT = """

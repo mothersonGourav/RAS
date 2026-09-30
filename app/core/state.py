@@ -28,4 +28,5 @@ class AgentState(TypedDict, total=False):
     turn_classification:   Optional[str]
     semantic_state:        Optional[Dict[str,Any]]
     pending_semantic_state: Optional[Dict[str,Any]]
+    follow_up_questions:   Optional[List[str]]
     

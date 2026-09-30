@@ -105,6 +105,7 @@ class IntentAgent:
                 "top_n":           response.top_n,
                 "raw_filters":     response.filters,
                 "intent":          response.model_dump(),
+                "interpreted_query": response.interpreted_query,
                 "validated_schema": {}, 
                 "sql_queries":      []
             }
