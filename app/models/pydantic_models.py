@@ -12,9 +12,9 @@ class IntentContract(BaseModel):
         default=None,
         description=(
             "An affirmative, conversational summary of what the system understood from the user's question. "
-            "It MUST not always start with 'Yes. Based on...' and rephrase the user's intent in plain business English, "
+            "It MUST always start with 'Based on...' and rephrase the user's intent in plain business English, "
             "clarifying the exact metric, filters, and business scope being evaluated. "
-            "Example: 'Yes. Based on your request, you are looking for the total spend (negotiated item value) "
+            "Example: 'Based on your request, you are looking for the total spend (negotiated item value) "
             "for all Tooling CapEx requisitions across all global SMR entities for fiscal year 2024-2025.'"
         )
     )
