@@ -32,13 +32,27 @@ class IntentAgent:
         user_prompt = state.get("rewritten_query") or state.get("current_query", "")
         
         try:
-            response: IntentContract = await self.llm.generate_structured(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                schema_class=IntentContract
-            )
             
             user_selected = state.get("user_selected_value") or {}
+           ##The Bypass Logic
+            if state.get("turn_classification") == "AMBIGUITY_CHOICE" and user_selected:
+                logger.info("Intent Agent: AMBIGUITY_CHOICE detected. Bypassing LLM generation.")
+                pending = state.get("pending_semantic_state") or {}
+                response = IntentContract(
+                    thought_process="Bypassed LLM - Restored from pending state for ambiguity resolution.",
+                    route=pending.get("route") or "sql",
+                    target_table="tbl_ras_data",
+                    metric=pending.get("metric"),
+                    filters=pending.get("active_filters") or {},
+                    top_n=pending.get("top_n")
+                )
+            else:
+                # ORIGINAL LLM EXECUTION
+                response: IntentContract = await self.llm.generate_structured(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    schema_class=IntentContract
+                )
             filters_dict = response.filters or {}
 
             # If user made an ambiguity choice, override/replace filters purely in Python

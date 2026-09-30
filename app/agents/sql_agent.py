@@ -242,7 +242,7 @@ class SQLAgent:
             f"{comparison_instruction}\n\n"
             f"METRIC:\n{state.get('metric')}\n\n"
             f"TOP N:\n{state.get('top_n')}"
-            # f"{few_shot_enforcement}"
+            f"{few_shot_enforcement}"
         )
 
         system_tokens = self.count_tokens(system_prompt)
@@ -256,7 +256,7 @@ class SQLAgent:
                 schema_class  = SQLContract,
             )
 
-            for q in response.queries:
+            for i,q in enumerate(response.queries, start=1):
                 pure_sql = self.extract_first_sql(q.sql) 
                 q.sql = self.clean_sql(pure_sql)
 

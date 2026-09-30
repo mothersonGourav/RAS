@@ -27,4 +27,5 @@ class AgentState(TypedDict, total=False):
     user_selected_value:   Optional[Dict[str, Any]]
     turn_classification:   Optional[str]
     semantic_state:        Optional[Dict[str,Any]]
+    pending_semantic_state: Optional[Dict[str,Any]]
     

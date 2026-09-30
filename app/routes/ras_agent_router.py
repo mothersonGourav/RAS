@@ -30,13 +30,15 @@ async def chat(request: Request, payload: ChatRequest):
     try: 
         chat_history = await redis_client.get_chat_history(payload.UserId)
         semantic_state = await redis_client.get_semantic_state(payload.UserId)
+        pending_state = await redis_client.get_semantic_state(f"pending_{payload.UserId}")
 
         result = await orchestrator.invoke({
             "current_query": payload.Request,
             "user_id": payload.UserId,
             "language": getattr(payload, "Language", "en") or "en",
             "messages": chat_history,
-            "semantic_state": semantic_state
+            "semantic_state": semantic_state,
+            "pending_semantic_state": pending_state
         })
         
         # Security Route

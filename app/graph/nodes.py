@@ -123,7 +123,9 @@ class GraphNodes:
     async def cache_save_node(self, state: AgentState):
         if state.get("final_response") and state.get("category") != "security_block":
             user_id = state.get("user_id")
-            
+
+            if hasattr(self.redis_client, 'save_semantic_state'):
+                await self.redis_client.save_semantic_state(f"pending_{user_id}", {})
             # Save Semantic State
             filters_to_save = state.get("raw_filters") or {}
             semantic_payload = {
@@ -165,6 +167,15 @@ class GraphNodes:
             clarification = f"{options_text}"
             user_id = state.get("user_id")
             
+            pending_payload = {
+                "active_filters": state.get("raw_filters", {}),
+                "metric": state.get("metric"),
+                "route": state.get("route"),
+                "top_n": state.get("top_n")
+            }
+            if hasattr(self.redis_client, 'save_semantic_state'):
+                await self.redis_client.save_semantic_state(f"pending_{user_id}", pending_payload)
+
             if hasattr(self.redis_client, 'append_chat_message'):
                 await self.redis_client.append_chat_message(user_id,"user", actual_user_selection)
                 await self.redis_client.append_chat_message(user_id,"assistant", clarification)
