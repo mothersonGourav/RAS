@@ -58,34 +58,46 @@ class IntentAgent:
             # If user made an ambiguity choice, override/replace filters purely in Python
             if user_selected:
                 logger.info(f"Intent Agent: Applying deterministic override with user selections: {list(user_selected.keys())}")
-                keys_to_remove = set()
+                
                 for sel_k, sel_v in user_selected.items():
+                    keys_to_remove = set()
+                    
+                    # 1. Clean the ambiguous string from OTHER columns to prevent duplicate filtering
                     for k, v in list(filters_dict.items()):
+                        if k.lower() == sel_k.lower():
+                            continue # Do NOT clean the target column we are currently injecting into
+                            
                         if isinstance(v, list):
                             new_list = [item for item in v if str(item).lower() not in str(sel_v).lower()]
-                            
-                            if sel_k.lower() == k.lower():
-                                new_list.append(sel_v)
-                                filters_dict[k] = new_list
-                            else:
-                                filters_dict[k] = new_list
-                                if not new_list:
-                                    keys_to_remove.add(k)
-                                    
-                        # Scalar Handling (Strings/Numbers)
+                            filters_dict[k] = new_list
+                            if not new_list:
+                                keys_to_remove.add(k)
                         else:
-                            if sel_k.lower() == k.lower() or (isinstance(v, str) and str(v).lower() in str(sel_v).lower()):
+                            if isinstance(v, str) and str(v).lower() in str(sel_v).lower():
                                 keys_to_remove.add(k)
 
-                for k in keys_to_remove:
-                    if k in filters_dict:
+                    for k in keys_to_remove:
                         logger.info(f"Intent Agent: Dropping ambiguous LLM filter '{k}'")
                         del filters_dict[k]
-                
-                # Inject exact user-selected values without any LLM alteration
-                for k, v in user_selected.items():
-                    if k not in filters_dict or not isinstance(filters_dict[k], list):
-                        filters_dict[k] = v
+                    
+                    # 2. Inject the selected value SAFELY (Promote to list if key already exists)
+                    target_key = sel_k.lower()
+                    
+                    # Safely find if the target key exists case-insensitively
+                    actual_key = next((k for k in filters_dict.keys() if k.lower() == target_key), sel_k)
+
+                    if actual_key in filters_dict:
+                        existing_val = filters_dict[actual_key]
+                        if isinstance(existing_val, list):
+                            if sel_v not in existing_val:
+                                existing_val.append(sel_v)
+                        else:
+                            if str(existing_val).lower() != str(sel_v).lower():
+                                # Promote existing scalar to a list to hold both constraints
+                                filters_dict[actual_key] = [existing_val, sel_v]
+                                logger.info(f"Intent Agent: Promoted '{actual_key}' to list to preserve multiple entities.")
+                    else:
+                        filters_dict[sel_k] = sel_v
 
                 response.filters = filters_dict
                 if response.route == "vague":

@@ -131,11 +131,12 @@ Processing Rules:
    - Never change the string in any case which are inside (filtered for ) and user_selected_value , those are validated values which do not need to be manipulated in any form.
    
 10. INTERPRETED QUERY GUIDELINES:
-   - The 'interpreted_query' field must validate the user's question before the data is retrieved.
-   - It must ALWAYS start with "Yes. Based on [the criteria/filters/data requested]..."
+   - The 'interpreted_query' field must validated the user's question before the data is retrieved.
+   - It must ALWAYS start with "Based on [the criteria/filters/data requested]..."
    - Translate database columns and metrics into plain business language (e.g., map 'negotiated_item_value' to 'total spend').
    - Clearly state the scope (e.g., mention if it applies globally or to a specific site/supplier).
    - If the request is vague or outside the schema, start with "No. Based on the provided request..." and explain what could not be mapped.
+   
 OUTPUT FORMAT:
 You must output a structured JSON schema. You MUST start by populating the `thought_process` field, documenting exactly which schema column/alias you mapped the user's terms to, and why you selected the specific `target_table`.
 """
